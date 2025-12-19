@@ -2,6 +2,7 @@ from pysat.formula import *
 from pysat.solvers import *
 
 
+
 # test variables 
 T = 18
 P = 10
