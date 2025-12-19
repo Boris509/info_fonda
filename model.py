@@ -50,10 +50,11 @@ class Solver:
         self.cnf.append([v.id("ALL"), v.id("B")])
 
         # dur_{t, d} = 1
-        for t in range (1, T): 
+        for t in range (1, T):
+            # add every T_{p} <= d
             for item in self.D.items():
                 p, d = item
-                v.id(("dur", t, d))
+                id_dur = v.id(("dur", t, d))
                 for item in self.D.items() : 
                     p_, d_  = item
                     if self.D[p_] > d:
@@ -61,11 +62,24 @@ class Solver:
                     else: 
                         for s in range(len(S)):
                             v.id(("dep", t, p, s))
+                            self.cnf.append([id_dur, -v.id("dur")])
+
+            # at least one dep_{t, p, s} = 1
+            clause_phi5 = [-id_dur]
+            found_eligible_p = False
+            for p in range (0, P):
+                for s in S:
+                    if self.D[p] == d:
+                        id_dep = v.id(("dep", t, p, s))
+                        found_eligible_p = True
+                        clause_phi5.append(id_dep)
+            
+            if found_eligible_p:
+                self.cnf.append(clause_phi5)
+
         
-        self.cnf.append([-v.id("dep"), -v.id("dur")])
         
-        print(self.cnf.clauses)
-                        
+        # A -> B                        
                     
                 # with A -> B is truth when B = 0 only when A=0
         
