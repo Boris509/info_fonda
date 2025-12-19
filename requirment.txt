@@ -1,0 +1,5 @@
+Create a virtual enviroment 
+
+Install Pysat : 
+$ pip install python-sat
+
