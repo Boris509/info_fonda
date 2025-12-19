@@ -20,7 +20,7 @@ class Solver:
         
 
     def create_values(self):
-        for t in T :
+        for t in range(0, T) :
             # variables onle dependant on t 
             v.id(("side", t))
             v.id(("DEP", t))
@@ -33,7 +33,7 @@ class Solver:
                 v.id(("ARR", t - d))
 
             
-            for p in p:
+            for p in  range(0, P):
                 for s in S : 
                     v.id(("dep", t, p, s))
                     v.id(("A", t, p))
@@ -50,19 +50,24 @@ class Solver:
         self.cnf.append([v.id("ALL"), v.id("B")])
 
         # dur_{t, d} = 1
-        for t in T: 
-            for item in self.d:
+        for t in range (1, T): 
+            for item in self.D.items():
                 p, d = item
                 v.id(("dur", t, d))
-                for item in self.d : 
+                for item in self.D.items() : 
                     p_, d_  = item
                     if self.D[p_] > d:
                         continue
-                    else :
-                        for s in S:
+                    else: 
+                        for s in range(len(S)):
                             v.id(("dep", t, p, s))
+        
+        self.cnf.append([-v.id("dep"), -v.id("dur")])
+        
+        print(self.cnf.clauses)
+                        
+                    
                 # with A -> B is truth when B = 0 only when A=0
-                self.cnf.append([-v.id("dep"), -v.id("dur")])
         
 
 
@@ -70,4 +75,11 @@ class Solver:
 
 
 
+
+def main():
+    solver = Solver(D)
+    solver.create_values()
+    solver.add_constraint()
+
+main()
 
