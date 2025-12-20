@@ -22,7 +22,7 @@ class FormulaBuilder:
         self.S = S
 
         self.add_initial_state()
-        #self.add_goal_state()
+        self.add_goal_state()
         self.add_duration_constraint()
          # Capacity constraint
         card = CardEnc.atmost(lits=[self.v.id(("dep", t, p, s))
@@ -40,7 +40,25 @@ class FormulaBuilder:
         for p in range(len(self.D)):
             self.cnf.append([-self.v.id(("B",p , 0))])
             self.cnf.append([self.v.id(("A",p , 0))])
+        
         self.add_exactly_one_deployment()
+     
+    def add_exactly_one_deployment(self):
+        for t in range(1, self.T):  # or range(self.T)
+            all_deps_at_t = []
+            for p in self.D:
+                for s in self.S:
+                    dep_id = self.v.id(("dep", t, p, s))
+                    all_deps_at_t.append(dep_id)
+
+            if all_deps_at_t:
+                # Exactly one: at least one
+                self.cnf.append(all_deps_at_t[:])  # OR of all
+
+                # At most one: pairwise negative
+                for i in range(len(all_deps_at_t)):
+                    for j in range(i+1, len(all_deps_at_t)):
+                        self.cnf.append([-all_deps_at_t[i], -all_deps_at_t[j]])
         
 
 
@@ -145,22 +163,7 @@ class FormulaBuilder:
         for r in right:
             self.cnf.append([lit for lit in left] + [r])
 
-    def add_exactly_one_deployment(self):
-        for t in range(1, self.T):  # or range(self.T)
-            all_deps_at_t = []
-            for p in self.D:
-                for s in self.S:
-                    dep_id = self.v.id(("dep", t, p, s))
-                    all_deps_at_t.append(dep_id)
-
-            if all_deps_at_t:
-                # Exactly one: at least one
-                self.cnf.append(all_deps_at_t[:])  # OR of all
-
-                # At most one: pairwise negative
-                for i in range(len(all_deps_at_t)):
-                    for j in range(i+1, len(all_deps_at_t)):
-                        self.cnf.append([-all_deps_at_t[i], -all_deps_at_t[j]])
+    
    
     def add_duration_constraint(self):
         """
