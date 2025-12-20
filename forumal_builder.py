@@ -30,6 +30,9 @@ class FormulaBuilder:
                                         bound=self.capacity, vpool=self.v, encoding=EncType.totalizer)
     
         self.cnf.extend(card.clauses)
+        self.add_arrival_constraints()
+        self.add_exactly_one_deployment()
+
         #self.add_constraint()
 
 
@@ -38,10 +41,9 @@ class FormulaBuilder:
         self.cnf.append([-self.v.id(("ALL", 0))])
 
         for p in range(len(self.D)):
-            self.cnf.append([-self.v.id(("B",p , 0))])
+            self.cnf.append([-self.v.id(("B", p , 0))])
             self.cnf.append([self.v.id(("A",p , 0))])
         
-        self.add_exactly_one_deployment()
      
     def add_exactly_one_deployment(self):
         for t in range(1, self.T):  # or range(self.T)
@@ -64,11 +66,21 @@ class FormulaBuilder:
 
     def add_goal_state(self):
         # ALL_{1} = 1
-        for t in range(self.T): 
+        for t in range(0,self.T): 
             ALL_t = self.v.id(("ALL", t))
+
+            chickens_on_B = []
             for p in range(len(self.D)):
                 B_p_t = self.v.id(("B", p, t))
-                #self.cnf.append([-ALL_t, B_p_t])
+                chickens_on_B.append(B_p_t)
+
+            if not chickens_on_B:
+                self.cnf.append([ALL_t])
+
+            self.add_implication_constraints([-ALL_t], chickens_on_B)
+
+            for b_lit in chickens_on_B:
+                self.cnf.append([-b_lit, ALL_t])
 
         all_t_lits = [self.v.id(("ALL", t)) for t in range(self.T)]
         self.cnf.append(all_t_lits)
