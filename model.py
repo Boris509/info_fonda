@@ -83,42 +83,50 @@ class Solver:
                 for p in range(0, P):
                     for item in self.D.items():
                         p, d = item
+                        # Starting point
                         side_t = v.id(("side", t))
+
+                        # Trip duration
                         dur_t_d = v.id(("dur", t, d))
 
-                        # Arrives in A
+                        # Leaves from B
                         b_dep_t_p_retour = v.id(("dep", t, p, "r"))
-                        # Arrives in B
+                        # Leaves from A
                         a_dep_t_p_aller  = v.id(("dep", t, p, "a"))
 
+                        # check if arrival time is within bounds
                         if t + d <= T:
+                            # the must an arrival at time t + d
                             arr_t = v.id(("ARR", t + d))
+                            # Boat must be on this side at time t + d
                             side_t_d = v.id(("side", t + d))
 
+                            # Side must contain chickens at time t + d
                             A_p_t = v.id(("A", t + d, p))
                             B_p_t = v.id(("B", t + d, p))
 
-                            # todo : revoir
-
-                            # B_dep_t_p_retour AND dur_t_d  -> ( arr_t AND side_t_d AND A_p_t AND side_t)
+                            # Adding constraints :
+                            # Leaving from B to A
+                            # B_dep_t_p_retour AND dur_t_d  -> ( arr_t AND side_t_d AND A_p_t AND -side_t)
                             condition = [-b_dep_t_p_retour, -dur_t_d]
-                            self.cnf.append([condition + [-arr_t]])
-                            self.cnf.append([condition + [side_t_d]]) # Force Side 0 (B)
+                            self.cnf.append([condition + [arr_t]])
+                            self.cnf.append([condition + [side_t_d]]) 
+                            self.cnf.append([condition + [A_p_t]])
+                            self.cnf.append([condition + [-side_t]])
+
+                            combined_right_b = [-arr_t, -side_t_d, B_p_t, side_t]
+                            self.cnf.append(combined_right_b + [b_dep_t_p_retour])
+                            self.cnf.append(combined_right_b + [dur_t_d])
+                         
+                            # Leaving from A to B
+                            # A_dep_t_p_aller AND dur_t_d  -> ( arr_t AND -side_t_d AND B_p_t AND side_t)
+                            condition = [-a_dep_t_p_aller, -dur_t_d]
+                            self.cnf.append([condition + [arr_t]])
+                            self.cnf.append([condition + [-side_t_d]])
                             self.cnf.append([condition + [B_p_t]])
                             self.cnf.append([condition + [side_t]])
 
-                            combined_right_b = [arr_t, -side_t_d, A_p_t, -side_t]
-                            self.cnf.append(combined_right_b + [b_dep_t_p_retour])
-                            self.cnf.append(combined_right_b + [dur_t_d])
-
-                            # A_dep_t_p_aller AND dur_t_d  -> ( arr_t AND side_t_d AND B_p_t AND side_t)
-                            condition = [-a_dep_t_p_aller, -dur_t_d]
-                            self.cnf.append([condition + [arr_t]])
-                            self.cnf.append([condition + [side_t_d]])
-                            self.cnf.append([condition + [B_p_t]])
-                            self.cnf.append([condition + [-side_t]])
-
-                            combined_right_a = [-arr_t, -side_t_d, A_p_t, side_t]
+                            combined_right_a = [-arr_t, side_t_d, A_p_t, -side_t]
                             self.cnf.append(combined_right_a + [a_dep_t_p_aller])
                             self.cnf.append(combined_right_a + [dur_t_d])
                   
