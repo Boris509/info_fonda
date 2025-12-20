@@ -11,13 +11,11 @@ D = {1: 2, 2 : 4, 3: 7, 4 : 10, 5 : 7, 6 : 7, 7: 9, 8: 10}
 S = ["a", "r"]
 
 
-v = IDPool()
-
-
 class Solver:
 
     def __init__(self, durations=D, capacity=3, T=Time, P=Poule, S=S):
         self.cnf = CNF()
+        self.v = IDPool()
         self.D = durations
         self.capacity = capacity
         self.T = T
@@ -27,31 +25,30 @@ class Solver:
     def create_values(self):
         for t in range(0, self.T) :
             # variables onle dependant on t 
-            v.id(("side", t))
-            v.id(("DEP", t))
-            v.id(("ALL", t))
+            self.v.id(("side", t))
+            self.v.id(("DEP", t))
+            self.v.id(("ALL", t))
 
             for item in self.D.items():
                 # pas sure
                 d = item[1]
-                v.id(("dur", t, item[1]) )
-                v.id(("ARR", t - d))
+                self.v.id(("dur", t, item[1]) )
+                self.v.id(("ARR", t - d))
 
             for p in range(0, self.P):
-                for s in S : 
-                    v.id(("dep", t, p, s))
-                    v.id(("A", t, p))
-                    v.id(("B", t, p))
+                for s in self.S : 
+                    self.v.id(("dep", t, p, s))
+                    self.v.id(("A", t, p))
+                    self.v.id(("B", t, p))
 
     def add_constraint(self):
         # DEP_{t} = 1
-        self.cnf.append([v.id("DEP"), v.id("dep")])
-
+        self.cnf.append([self.v.id("DEP"), self.v.id("dep")])       
         # ARR_{t} = 1
-        self.cnf.append([v.id("ARR"), v.id("dur")])
+        self.cnf.append([self.v.id("ARR"), self.v.id("dur")])
 
         # ALL_{t} = 1
-        self.cnf.append([v.id("ALL"), v.id("B")])
+        self.cnf.append([self.v.id("ALL"), self.v.id("B")])
         
         # Capacity constraint
         card = CardEnc.atmost(lits=[self.v.id(("dep", t, p, s))
@@ -72,26 +69,26 @@ class Solver:
                 for item in self.D.items():
                     p, d = item
                     # Starting point
-                    side_t = v.id(("side", t))
+                    side_t = self.v.id(("side", t))
 
                     # Trip duration
-                    dur_t_d = v.id(("dur", t, d))
+                    dur_t_d = self.v.id(("dur", t, d))
 
                     # Leaves from B
-                    b_dep_t_p_retour = v.id(("dep", t, p, "r"))
+                    b_dep_t_p_retour = self.v.id(("dep", t, p, "r"))
                     # Leaves from A
-                    a_dep_t_p_aller  = v.id(("dep", t, p, "a"))
+                    a_dep_t_p_aller  = self.v.id(("dep", t, p, "a"))
 
                     # check if arrival time is within bounds
                     if t + d <= self.T:
                         # the must an arrival at time t + d
-                        arr_t = v.id(("ARR", t + d))
+                        arr_t = self.v.id(("ARR", t + d))
                         # Boat must be on this side at time t + d
-                        side_t_d = v.id(("side", t + d))
+                        side_t_d = self.v.id(("side", t + d))
 
                         # Side must contain chickens at time t + d
-                        A_p_t = v.id(("A", t + d, p))
-                        B_p_t = v.id(("B", t + d, p))
+                        A_p_t = self.v.id(("A", t + d, p))
+                        B_p_t = self.v.id(("B", t + d, p))
 
                         # Adding constraints :
                         # Leaving from B to A
@@ -135,15 +132,15 @@ class Solver:
             # add every T_{p} <= d
             for item in self.D.items():
                 p, d = item
-                id_dur = v.id(("dur", t, d))
+                id_dur = self.v.id(("dur", t, d))
                 for item in self.D.items() : 
                     p_, d_  = item
                     if self.D[p_] > d:
                         continue
                     else: 
-                        for s in range(len(S)):
-                            v.id(("dep", t, p, s))
-                            self.cnf.append([id_dur, -v.id("dur")])
+                        for s in range(len(self.S)):
+                            self.v.id(("dep", t, p, s))
+                            self.cnf.append([id_dur, -self.v.id("dur")])
 
             # at least one dep_{t, p, s} = 1
             clause_phi5 = [-id_dur]
@@ -151,7 +148,7 @@ class Solver:
             for p in range (0, self.P):
                 for s in self.S:
                     if self.D[p] == d:
-                        id_dep = v.id(("dep", t, p, s))
+                        id_dep = self.v.id(("dep", t, p, s))
                         found_eligible_p = True
                         clause_phi5.append(id_dep)
             
