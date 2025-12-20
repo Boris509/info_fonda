@@ -23,7 +23,7 @@ class FormulaBuilder:
 
         self.add_initial_state()
         self.add_goal_state()
-        self.add_duration_constraint()
+        #self.add_duration_constraint()
          # Capacity constraint
         card = CardEnc.atmost(lits=[self.v.id(("dep", t, p, s))
                                         for t in range(self.T) for p in range(self.P) for s in self.S], 
@@ -207,15 +207,10 @@ class FormulaBuilder:
                         self.cnf.append([-dur_id, -dep_id])
                     if authorized_dep:
                         self.cnf.append([-dur_id] + authorized_dep)
+    
 
 
 
-
-
-        
-
-
-            
 
         
 
