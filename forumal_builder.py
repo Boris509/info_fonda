@@ -28,11 +28,14 @@ class FormulaBuilder:
 
     def add_initial_state(self):
         self.cnf.append([self.v.id(("side", 0))])
+        self.cnf.append([-self.v.id(("ALL", 0))])
 
         for p in range(len(self.D)):
             self.cnf.append([-self.v.id(("B",p , 0))])
             self.cnf.append([self.v.id(("A",p , 0))])
         
+
+
     def add_goal_state(self):
         # ALL_{1} = 1
         for t in range(self.T): 
@@ -40,6 +43,9 @@ class FormulaBuilder:
             for p in range(len(self.D)):
                 B_p_t = self.v.id(("B", p, t))
                 self.cnf.append([-ALL_t, B_p_t])
+
+        all_t_lits = [self.v.id(("ALL", t)) for t in range(self.T)]
+        self.cnf.append(all_t_lits)
     
 
     def add_constraint(self):   
