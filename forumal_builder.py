@@ -1,0 +1,186 @@
+from pysat.formula import * 
+from pysat.solvers import *
+from pysat.card import *
+
+
+
+# test variables 
+Time = 18
+Poule = 10
+D = {1: 2, 2 : 4, 3: 7, 4 : 10, 5 : 7, 6 : 7, 7: 9, 8: 10, 9:12, 10:15, 11:5, 12:3, 13:2, 14:4, 15:6, 16:8, 17:9, 18:11}
+S = ["a", "r"]
+
+class FormulaBuilder:
+
+    def __init__(self, durations=D, capacity=3, T=Time, P=Poule, S=S):
+        self.cnf = CNF()
+        self.v = IDPool()
+        self.D = durations
+        self.capacity = capacity
+        self.T = T
+        self.P = P
+        self.S = S
+
+        self.create_values()
+        self.add_constraint()
+
+    def create_values(self):
+        for t in range(0, self.T) :
+            # variables onle dependant on t 
+            self.v.id(("side", t))
+            self.v.id(("DEP", t))
+            self.v.id(("ALL", t))
+
+            for item in self.D.items():
+                # pas sure
+                d = item[1]
+                self.v.id(("dur", t, item[1]) )
+                self.v.id(("ARR", t - d))
+
+            for p in range(0, self.P):
+                for s in self.S : 
+                    self.v.id(("dep", t, p, s))
+                    self.v.id(("A", t, p))
+                    self.v.id(("B", t, p))
+
+    def add_constraint(self):
+        # DEP_{t} = 1
+        self.cnf.append([self.v.id("DEP"), self.v.id("dep")])       
+        # ARR_{t} = 1
+        self.cnf.append([self.v.id("ARR"), self.v.id("dur")])
+
+        # ALL_{t} = 1
+        self.cnf.append([self.v.id("ALL"), self.v.id("B")])
+        
+        # Capacity constraint
+        card = CardEnc.atmost(lits=[self.v.id(("dep", t, p, s))
+                                        for t in range(self.T) for p in range(self.P) for s in self.S], 
+                                        bound=self.capacity, vpool=self.v, encoding=EncType.totalizer)
+        
+        self.cnf.extend(card.clauses)
+
+        self.add_arrival_constraints()
+        self.add_duration_constraint()
+
+
+    def add_arrival_constraints(self):
+
+         # if boat on side A and B at time t, then all departures at time t must be from side A or side B
+        for t in range(0, self.T):
+            for p in range(0, self.P):
+                for item in self.D.items():
+                    p, d = item
+                    # Starting point
+                    side_t = self.v.id(("side", t))
+
+                    # Trip duration
+                    dur_t_d = self.v.id(("dur", t, d))
+
+                    # Leaves from B
+                    b_dep_t_p_retour = self.v.id(("dep", t, p, "r"))
+                    # Leaves from A
+                    a_dep_t_p_aller  = self.v.id(("dep", t, p, "a"))
+
+                    # check if arrival time is within bounds
+                    if t + d <= self.T:
+                        # the must an arrival at time t + d
+                        arr_t = self.v.id(("ARR", t + d))
+                        # Boat must be on this side at time t + d
+                        side_t_d = self.v.id(("side", t + d))
+
+                        # Side must contain chickens at time t + d
+                        A_p_t = self.v.id(("A", t + d, p))
+                        B_p_t = self.v.id(("B", t + d, p))
+
+                        # Adding constraints :
+                        # Leaving from B to A
+                        # B_dep_t_p_retour AND dur_t_d  -> ( arr_t AND side_t_d AND A_p_t AND -side_t)
+                        condition = [-b_dep_t_p_retour, -dur_t_d]
+                        implied = [arr_t, side_t_d, A_p_t, -side_t]
+                        self.add_implication_constraints(condition, implied)
+
+                        condition = [-arr_t, -side_t_d, B_p_t, side_t]
+                        implied = [b_dep_t_p_retour, dur_t_d]
+                        self.add_implication_constraints(condition, implied)
+                        
+                        # Leaving from A to B
+                        # A_dep_t_p_aller AND dur_t_d  -> ( arr_t AND -side_t_d AND B_p_t AND side_t)
+                        condition = [-a_dep_t_p_aller, -dur_t_d]
+                        implied = [arr_t, -side_t_d, B_p_t, side_t]
+                        self.add_implication_constraints(condition, implied)
+        
+
+                        condition = [-arr_t, side_t_d, A_p_t, -side_t]
+                        implied = [a_dep_t_p_aller, dur_t_d]
+                        self.add_implication_constraints(condition, implied)
+            
+
+    def add_implication_constraints(self, left, right):
+        """
+        Encodes: (AND left) -> (AND right)
+        left  : iterable of literals
+        right : iterable of literals
+        """
+        left = list(left)
+        right = list(right)
+
+        for r in right:
+            self.cnf.append([-lit for lit in left] + [r])
+
+
+    def add_duration_constraint(self):
+          # dur_{t, d} = 1
+        for t in range (1, self.T):
+            # add every T_{p} <= d
+            for item in self.D.items():
+                p, d = item
+                id_dur = self.v.id(("dur", t, d))
+                for item in self.D.items() : 
+                    p_, d_  = item
+                    if self.D[p_] > d:
+                        continue
+                    else: 
+                        for s in range(len(self.S)):
+                            self.v.id(("dep", t, p, s))
+                            self.cnf.append([id_dur, -self.v.id(("dep", t, p_, s))])
+
+                # at least one dep_{t, p, s} = 1
+                clause_phi5 = [-id_dur]
+                found_eligible_p = False
+                for p in range (1, self.P):
+                    for s in self.S:
+                        print("duration:", self.D[p], "d:", d)
+                        if self.D[p] == d:
+                            id_dep = self.v.id(("dep", t, p, s))
+                            found_eligible_p = True
+                            clause_phi5.append(id_dep)
+                
+                if found_eligible_p:
+                    self.cnf.append(clause_phi5)
+
+
+def check_satisfiability(cnf, v):
+    # Using 'g3' (Glucose 3) as the solver
+    with Solver(name='g3', bootstrap_with=cnf) as s:
+        is_satisfiable = s.solve()
+        if is_satisfiable:
+            model = s.get_model()
+            # Map integers back to variable names for readability
+            readable_model = {v.obj(abs(lit)): (lit > 0) for lit in model}
+            return True, readable_model
+        else:
+            return False, None
+
+
+
+def main():
+    formula_builder = FormulaBuilder(D)
+    satisfiable, model = check_satisfiability(formula_builder.cnf, formula_builder.v)
+    if satisfiable:
+        print("The formula is satisfiable.")
+        print("A satisfying assignment is:", model)
+    else:
+        print("The formula is not satisfiable.")
+
+main()
+
