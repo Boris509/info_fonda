@@ -43,20 +43,12 @@ class FormulaBuilder:
                     self.v.id(("A", t, p))
                     self.v.id(("B", t, p))
 
-    def add_constraint(self):
-        # DEP_{t} = 1
-        self.cnf.append([self.v.id("DEP"), self.v.id("dep")])       
-        # ARR_{t} = 1
-        self.cnf.append([self.v.id("ARR"), self.v.id("dur")])
-
-        # ALL_{t} = 1
-        self.cnf.append([self.v.id("ALL"), self.v.id("B")])
-        
+    def add_constraint(self):        
         # Capacity constraint
         card = CardEnc.atmost(lits=[self.v.id(("dep", t, p, s))
                                         for t in range(self.T) for p in range(self.P) for s in self.S], 
                                         bound=self.capacity, vpool=self.v, encoding=EncType.totalizer)
-        
+    
         self.cnf.extend(card.clauses)
 
         self.add_arrival_constraints()
@@ -169,9 +161,6 @@ def check_satisfiability(cnf, v):
             return True, readable_model
         else:
             return False, None
-
-
-
 
 # todo : transfere logique a gen_solution 
 def main():
