@@ -1,5 +1,6 @@
 from pysat.formula import * 
 from pysat.solvers import *
+from pysat.card import *
 
 
 
@@ -15,10 +16,10 @@ v = IDPool()
 
 class Solver:
 
-    def __init__(self, d):
+    def __init__(self, d, capacity=3):
         self.cnf = CNF()
         self.D = d
-        
+        self.capacity = capacity
 
     def create_values(self):
         for t in range(0, T) :
@@ -129,11 +130,16 @@ class Solver:
                             combined_right_a = [-arr_t, side_t_d, A_p_t, -side_t]
                             self.cnf.append(combined_right_a + [a_dep_t_p_aller])
                             self.cnf.append(combined_right_a + [dur_t_d])
-                  
+            
+            # Capacity constraint
+            card = CardEnc.atmost(lits=[self.v.id(("dep", t, p, s))
+                                         for t in range(T) for p in range(P) for s in S], 
+                                         bound=self.capacity, vpool=self.v, encoding=EncType.totalizer)
+            
 
+            self.cnf.extend(card.clauses)
 
-                    
-              
+    
 
         
         
