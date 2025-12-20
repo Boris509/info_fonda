@@ -21,27 +21,26 @@ class FormulaBuilder:
         self.P = P
         self.S = S
 
-        self.create_values()
+        self.add_initial_state()
+        self.add_goal_state()
         self.add_constraint()
 
-    def create_values(self):
-        for t in range(0, self.T) :
-            # variables onle dependant on t 
-            self.v.id(("side", t))
-            self.v.id(("DEP", t))
-            self.v.id(("ALL", t))
 
-            for item in self.D.items():
-                # pas sure
-                d = item[1]
-                self.v.id(("dur", t, item[1]) )
-                self.v.id(("ARR", t - d))
+    def add_initial_state(self):
+        self.cnf.append([self.v.id(("side", 0))])
 
-            for p in range(0, self.P):
-                for s in self.S : 
-                    self.v.id(("dep", t, p, s))
-                    self.v.id(("A", t, p))
-                    self.v.id(("B", t, p))
+        for p in range(len(self.D)):
+            self.cnf.append([-self.v.id(("B",p , 0))])
+            self.cnf.append([self.v.id(("A",p , 0))])
+        
+    def add_goal_state(self):
+        # ALL_{1} = 1
+        for t in range(self.T): 
+            ALL_t = self.v.id(("ALL", t))
+            for p in range(len(self.D)):
+                B_p_t = self.v.id(("B", p, t))
+                self.cnf.append([-ALL_t, B_p_t])
+    
 
     def add_constraint(self):   
         # DEP_{t} = 1
@@ -65,19 +64,7 @@ class FormulaBuilder:
                         self.cnf.append([-ARR_t, dur_t_d])
 
 
-        # ALL_{1} = 1
-
-        for t in range(self.T): 
-            ALL_t = self.v.id(("ALL", t))
-            for p in range(len(self.D)):
-                B_p_t = self.v.id(("B", p, t))
-                self.cnf.append([-ALL_t, B_p_t])
-                self.cnf.append([ALL_t, -B_p_t])
-
-        self.cnf.append([self.v.id("ARR"), self.v.id("dur")])
-
-        # ALL_{t} = 1
-        self.cnf.append([self.v.id("ALL"), self.v.id("B")])     
+    
         # Capacity constraint
         card = CardEnc.atmost(lits=[self.v.id(("dep", t, p, s))
                                         for t in range(self.T) for p in range(self.P) for s in self.S], 
@@ -203,9 +190,9 @@ def print_model(model):
     for key, value in model.items():
 
         if key is not None:
-            if key[0] == "dep":
-                if value :
-                    departures[key] = value
+          
+            if value :
+                departures[key] = value
 
     print(departures)
 
