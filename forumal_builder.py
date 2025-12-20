@@ -43,7 +43,41 @@ class FormulaBuilder:
                     self.v.id(("A", t, p))
                     self.v.id(("B", t, p))
 
-    def add_constraint(self):        
+    def add_constraint(self):   
+        # DEP_{t} = 1
+        for t in range(self.T) :
+            DEP_t = self.v.id(("DEP", t))
+            for p in range(self.P):
+                for s in self.S:
+                    dep_t_p_s = self.v.id(("dep", t, p, s))
+                    self.cnf.append([-DEP_t, dep_t_p_s])       
+                    self.cnf.append([- dep_t_p_s, DEP_t])     
+
+        # ARR_{t} = 1
+        for t in range(self.T) : 
+            ARR_t = self.v.id(("ARR", t))
+            for p, d in self.D.items():
+
+                for t_ in range(self.T ):
+                    dur_t_d = self.v.id(("dur", t, d))
+                    if t_ == t + d :
+                        self.cnf.append([-dur_t_d, ARR_t])
+                        self.cnf.append([-ARR_t, dur_t_d])
+
+
+        # ALL_{1} = 1
+
+        for t in range(self.T): 
+            ALL_t = self.v.id(("ALL", t))
+            for p in range(len(self.D)):
+                B_p_t = self.v.id(("B", p, t))
+                self.cnf.append([-ALL_t, B_p_t])
+                self.cnf.append([ALL_t, -B_p_t])
+
+        self.cnf.append([self.v.id("ARR"), self.v.id("dur")])
+
+        # ALL_{t} = 1
+        self.cnf.append([self.v.id("ALL"), self.v.id("B")])     
         # Capacity constraint
         card = CardEnc.atmost(lits=[self.v.id(("dep", t, p, s))
                                         for t in range(self.T) for p in range(self.P) for s in self.S], 
@@ -54,25 +88,24 @@ class FormulaBuilder:
         self.add_arrival_constraints()
         self.add_duration_constraint()
 
-
     def add_arrival_constraints(self):
 
          # if boat on side A and B at time t, then all departures at time t must be from side A or side B
         for t in range(0, self.T):
+            # Starting point
+            side_t = self.v.id(("side", t))
             for p in range(0, self.P):
-                for item in self.D.items():
-                    p, d = item
-                    # Starting point
-                    side_t = self.v.id(("side", t))
+                # Leaves from B
+                b_dep_t_p_retour = self.v.id(("dep", t, p, "r"))
+                # Leaves from A
+                a_dep_t_p_aller  = self.v.id(("dep", t, p, "a"))
 
+                for item in self.D.items():
+                    d = item[1]
                     # Trip duration
                     dur_t_d = self.v.id(("dur", t, d))
 
-                    # Leaves from B
-                    b_dep_t_p_retour = self.v.id(("dep", t, p, "r"))
-                    # Leaves from A
-                    a_dep_t_p_aller  = self.v.id(("dep", t, p, "a"))
-
+  
                     # check if arrival time is within bounds
                     if t + d <= self.T:
                         # the must an arrival at time t + d
@@ -117,37 +150,38 @@ class FormulaBuilder:
         right = list(right)
 
         for r in right:
-            self.cnf.append([-lit for lit in left] + [r])
+            self.cnf.append([lit for lit in left] + [r])
 
 
     def add_duration_constraint(self):
-          # dur_{t, d} = 1
-        for t in range (1, self.T):
-            # add every T_{p} <= d
-            for item in self.D.items():
-                p, d = item
-                id_dur = self.v.id(("dur", t, d))
-                for item in self.D.items() : 
-                    p_, d_  = item
-                    if self.D[p_] > d:
-                        continue
-                    else: 
-                        for s in range(len(self.S)):
-                            self.v.id(("dep", t, p, s))
-                            self.cnf.append([id_dur, -self.v.id(("dep", t, p_, s))])
+        # dur(t, d) ↔ OR_{p,s | D[p] = d} dep(t, p, s)
+        for t in range(1, self.T):
+            for p, d in self.D.items():
 
-                # at least one dep_{t, p, s} = 1
-                clause_phi5 = [-id_dur]
-                found_eligible_p = False
-                for p in range (1, self.P):
+                id_dur = self.v.id(("dur", t, d))
+
+                # Implication: dur(t,d) ⇒ dep(t,p',s) depending on duration
+                for p_, d_ in self.D.items():
                     for s in self.S:
-                        if self.D[p] == d:
-                            id_dep = self.v.id(("dep", t, p, s))
-                            found_eligible_p = True
-                            clause_phi5.append(id_dep)
-                
-                if found_eligible_p:
-                    self.cnf.append(clause_phi5)
+                        id_dep = self.v.id(("dep", t, p_, s))
+
+                        if d_ > d:
+                            self.cnf.append([-id_dur, -id_dep])
+                        else:
+                            # dur(t,d) ⇒ dep(t,p',s)
+                            continue
+                # Reverse implication:
+                # dep(t,p,s) with D[p] = d ⇒ dur(t,d)
+                clause_pos = []
+                for p_, d_ in self.D.items():
+                    if d_ == d:
+                        for s in self.S:
+                            id_dep = self.v.id(("dep", t, p_, s))
+                            clause_pos.append(id_dep)
+
+                if clause_pos:
+                    # dur(t,d) ⇒ OR dep(t,p,s)
+                    self.cnf.append([-id_dur] + clause_pos)
 
 
 def check_satisfiability(cnf, v):
@@ -163,6 +197,19 @@ def check_satisfiability(cnf, v):
             return False, None
 
 # todo : transfere logique a gen_solution 
+def print_model(model):
+    departures = {}
+
+    for key, value in model.items():
+
+        if key is not None:
+            if key[0] == "dep":
+                if value :
+                    departures[key] = value
+
+    print(departures)
+
+
 def main():
     durations = [1, 3, 6, 8]
     dict_durations = {i+1: durations[i] for i in range(len(durations))}
@@ -171,7 +218,8 @@ def main():
     satisfiable, model = check_satisfiability(formula_builder.cnf, formula_builder.v)
     if satisfiable:
         print("The formula is satisfiable.")
-        print("A satisfying assignment is:", model)
+        print("A satisfying assignment is:")
+        print_model(model)
     else:
         print("The formula is not satisfiable.")
 
