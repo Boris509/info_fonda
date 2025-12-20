@@ -149,7 +149,6 @@ class FormulaBuilder:
                 found_eligible_p = False
                 for p in range (1, self.P):
                     for s in self.S:
-                        print("duration:", self.D[p], "d:", d)
                         if self.D[p] == d:
                             id_dep = self.v.id(("dep", t, p, s))
                             found_eligible_p = True
@@ -173,8 +172,13 @@ def check_satisfiability(cnf, v):
 
 
 
+
+# todo : transfere logique a gen_solution 
 def main():
-    formula_builder = FormulaBuilder(D)
+    durations = [1, 3, 6, 8]
+    dict_durations = {i+1: durations[i] for i in range(len(durations))}
+
+    formula_builder = FormulaBuilder(dict_durations, capacity=2, T=18, P=4, S=["a", "r"])
     satisfiable, model = check_satisfiability(formula_builder.cnf, formula_builder.v)
     if satisfiable:
         print("The formula is satisfiable.")
