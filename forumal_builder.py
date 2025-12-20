@@ -22,8 +22,15 @@ class FormulaBuilder:
         self.S = S
 
         self.add_initial_state()
-        self.add_goal_state()
-        self.add_constraint()
+        #self.add_goal_state()
+        self.add_duration_constraint()
+         # Capacity constraint
+        card = CardEnc.atmost(lits=[self.v.id(("dep", t, p, s))
+                                        for t in range(self.T) for p in range(self.P) for s in self.S], 
+                                        bound=self.capacity, vpool=self.v, encoding=EncType.totalizer)
+    
+        self.cnf.extend(card.clauses)
+        #self.add_constraint()
 
 
     def add_initial_state(self):
@@ -33,6 +40,7 @@ class FormulaBuilder:
         for p in range(len(self.D)):
             self.cnf.append([-self.v.id(("B",p , 0))])
             self.cnf.append([self.v.id(("A",p , 0))])
+        self.add_exactly_one_deployment()
         
 
 
@@ -42,7 +50,7 @@ class FormulaBuilder:
             ALL_t = self.v.id(("ALL", t))
             for p in range(len(self.D)):
                 B_p_t = self.v.id(("B", p, t))
-                self.cnf.append([-ALL_t, B_p_t])
+                #self.cnf.append([-ALL_t, B_p_t])
 
         all_t_lits = [self.v.id(("ALL", t)) for t in range(self.T)]
         self.cnf.append(all_t_lits)
@@ -69,14 +77,6 @@ class FormulaBuilder:
                         self.cnf.append([-dur_t_d, ARR_t])
                         self.cnf.append([-ARR_t, dur_t_d])
 
-
-    
-        # Capacity constraint
-        card = CardEnc.atmost(lits=[self.v.id(("dep", t, p, s))
-                                        for t in range(self.T) for p in range(self.P) for s in self.S], 
-                                        bound=self.capacity, vpool=self.v, encoding=EncType.totalizer)
-    
-        self.cnf.extend(card.clauses)
 
         self.add_arrival_constraints()
         self.add_duration_constraint()
@@ -145,37 +145,64 @@ class FormulaBuilder:
         for r in right:
             self.cnf.append([lit for lit in left] + [r])
 
+    def add_exactly_one_deployment(self):
+        for t in range(1, self.T):  # or range(self.T)
+            all_deps_at_t = []
+            for p in self.D:
+                for s in self.S:
+                    dep_id = self.v.id(("dep", t, p, s))
+                    all_deps_at_t.append(dep_id)
 
+            if all_deps_at_t:
+                # Exactly one: at least one
+                self.cnf.append(all_deps_at_t[:])  # OR of all
+
+                # At most one: pairwise negative
+                for i in range(len(all_deps_at_t)):
+                    for j in range(i+1, len(all_deps_at_t)):
+                        self.cnf.append([-all_deps_at_t[i], -all_deps_at_t[j]])
+   
     def add_duration_constraint(self):
-        # dur(t, d) ↔ OR_{p,s | D[p] = d} dep(t, p, s)
-        for t in range(1, self.T):
+        """
+        Define dur(t, d) as: maximum duration of running processes at t is EXACTLY d
+        Using intermediate: max_duration_leq(t, k) = true iff all running processes have duration <= k
+        Then dur(t, d) ⇔ max_leq(t, d) ∧ ¬max_leq(t, d_prev)  (for sorted d)
+        """
+        for t in range(self.T):
+            dur_dict = {} # dur_list = {2: [dur_id_2, dur_id_4], 4: dur_id_3, ...}
             for p, d in self.D.items():
+                dur_id = self.v.id(("dur", t, d))
+                dur_dict.setdefault(d, []).append(dur_id)
 
-                id_dur = self.v.id(("dur", t, d))
-
-                # Implication: dur(t,d) ⇒ dep(t,p',s) depending on duration
-                for p_, d_ in self.D.items():
-                    for s in self.S:
-                        id_dep = self.v.id(("dep", t, p_, s))
-
-                        if d_ > d:
-                            self.cnf.append([-id_dur, -id_dep])
-                        else:
-                            # dur(t,d) ⇒ dep(t,p',s)
-                            continue
-                # Reverse implication:
-                # dep(t,p,s) with D[p] = d ⇒ dur(t,d)
-                clause_pos = []
-                for p_, d_ in self.D.items():
-                    if d_ == d:
+            
+            for dur, dur_ids in dur_dict.items():
+                for dur_id in dur_ids:
+                    forbidden_deps = []
+                    authorized_dep = []
+                    for p, p_dur in self.D.items():
                         for s in self.S:
-                            id_dep = self.v.id(("dep", t, p_, s))
-                            clause_pos.append(id_dep)
+                            dep_id = self.v.id(("dep", t, p, s))
 
-                if clause_pos:
-                    # dur(t,d) ⇒ OR dep(t,p,s)
-                    self.cnf.append([-id_dur] + clause_pos)
+                            if p_dur > dur:
+                                forbidden_deps.append(dep_id)
+                            else:
+                                if p_dur == dur:
+                                    authorized_dep.append(dep_id)
+                    for dep_id in forbidden_deps:
+                        self.cnf.append([-dur_id, -dep_id])
+                    if authorized_dep:
+                        self.cnf.append([-dur_id] + authorized_dep)
 
+
+
+
+
+        
+
+
+            
+
+        
 
 def check_satisfiability(cnf, v):
     # Using 'g3' (Glucose 3) as the solver
@@ -194,11 +221,7 @@ def print_model(model):
     departures = {}
 
     for key, value in model.items():
-
-        if key is not None:
-          
-            if value :
-                departures[key] = value
+        print(key, value)
 
     print(departures)
 
