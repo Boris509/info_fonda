@@ -69,6 +69,12 @@ class FormulaBuilderSkeleton:
                 self.cnf.append([-DEP_t] + all_person_deps)
 
     def defines_ARR(self):
+        """
+        Define the variable ARR_t. 
+        Logic : ARR_t' <=> (dur_t_d OR .... ) where t' = t + d
+        Meaning : If there's any voyage of speed d at time t then at t + d theres must be an arrival 
+
+        """
         for t_arr in range(0, self.T + 1):
             arr_var = self.v.id(("ARR", t_arr))
             possible_trips = []
@@ -89,7 +95,12 @@ class FormulaBuilderSkeleton:
                 self.cnf.append([-arr_var])
 
     def defines_ALL(self):
-        goal_constraint = []
+        """
+        Defines the variable ATT_t.
+        Logic : ALL_t <=> ( B_1_t AND B_2_t ... )
+        Meaning : If at any point every chicken is at berge B then ALL must be true
+
+        """
         for t in range(0, self.T + 1):
             ALL_t = self.v.id(("ALL", t))
             chickens_in_B = []
@@ -104,6 +115,13 @@ class FormulaBuilderSkeleton:
         self.cnf.append([self.v.id(("ALL", self.T))])
 
     def add_initial_state(self) -> None:
+        """
+
+        This function sets the initial state of the problem where :
+        - The boat(side) and all the chicken are at A. 
+        - There is no arrivals. 
+
+        """
         side0 = self.v.id(("side", 0))
         self.add_clause([side0])
         for p in range(1, self.P + 1):
@@ -125,6 +143,15 @@ class FormulaBuilderSkeleton:
             self.cnf.append([-lit for lit in left] + [r])
 
     def duration_constraint(self):
+        """
+        phi_5 : 
+        This function adds the duration constraints.
+        Logic : dur_t_d => (-dep_t_1_s AND -dep_t_2_s ...) if durrations[p] > d
+                dur_t_d => (dep_t_4_s OR dep_t_5_s...) where durations[p] == p 
+        Meaning : If there's a duration_t_d then their cant be departures of chickens whose speed is above d.
+                And there must exist at least one departure for which the speed of the chicken leaving must equal d. 
+
+        """ 
 
         for t in range(0, self.T+1):
             for item in self.durations.items():
@@ -149,6 +176,8 @@ class FormulaBuilderSkeleton:
                     self.cnf.append([-dur_t_d])
     
     def add_boarding_constraints(self):
+        """
+        """
         # Loop 0 to T-1 (or adjust range if you strictly don't allow start at 0)
         for t in range(self.T): 
             for p in range(1, self.P + 1):
@@ -165,6 +194,8 @@ class FormulaBuilderSkeleton:
                 self.cnf.append([-dep_t_p_r, B_p_t_])
 
     def add_arrival_constraints(self):
+        """
+        """
         for t in range(0, self.T +1):
             for T_p in self.speed:
                 dur_t_d = self.v.id(("dur", t, T_p))
@@ -184,6 +215,8 @@ class FormulaBuilderSkeleton:
 
 
     def add_alternating_constraints(self):
+        """
+        """
         for t in range(self.T):
             side_t = self.v.id(("side", t))
             for p in range(1, self.P+1):
