@@ -31,7 +31,8 @@ class FormulaBuilderSkeleton:
         self.defines_ALL()
         self.duration_constraint()
         self.add_arrival_constraints()
-
+        self.add_alternating_constraints()
+        self.add_location_constraints()
 
     def defines_DEP(self):
             """
@@ -79,6 +80,7 @@ class FormulaBuilderSkeleton:
                 self.cnf.append([-arr_var])
 
     def defines_ALL(self):
+        goal_constraint = []
         for t in range(1, self.T + 1):
             ALL_t = self.v.id(("ALL", t))
             chickens_in_B = []
@@ -87,6 +89,11 @@ class FormulaBuilderSkeleton:
                 chickens_in_B.append(B_pt)
             self.add_implication_constraints(chickens_in_B, [ALL_t])
             self.add_implication_constraints([ALL_t], chickens_in_B)
+
+            # goal constraint :
+            goal_constraint.append(ALL_t)
+
+        self.cnf.append(goal_constraint)
 
     def add_implication_constraints(self, left, right ):
         """
@@ -140,12 +147,48 @@ class FormulaBuilderSkeleton:
                     self.cnf.append([-dep_t_p_a, -dur_t_d, B_p_t_future])
                     self.cnf.append([-dep_t_p_r, -dur_t_d, A_p_t_future])
 
+    def add_alternating_constraints(self):
+        for t in range(1, self.T +1):
+            side_t = self.v.id(("side", t))
+            for p in range(1, self.P+1):
+                    dep_t_p_a = self.v.id(("dep", t, p, 'a'))
+                    dep_t_p_r = self.v.id(("dep", t, p, 'r'))
+
+                    self.cnf.append([-dep_t_p_a, side_t])
+                    self.cnf.append([-dep_t_p_r, -side_t])
 
 
+            for T_p in self.speed:
+                if t + T_p > self.T:
+                    continue
+                side_t_future = self.v.id(("side", t + T_p))
+                dur_t_d = self.v.id(("dur", t, T_p))
 
+                for p in range(1, self.P+1):
+                    dep_t_p_a = self.v.id(("dep", t, p, 'a'))
+                    dep_t_p_r = self.v.id(("dep", t, p, 'r'))
 
+                    
+                    self.cnf.append([-dep_t_p_a, -dur_t_d, -side_t_future])
+                    self.cnf.append([-dep_t_p_r, -dur_t_d, side_t_future])
 
+    def add_location_constraints(self):
+        for t in range(1, self.T):
+            for p in range(1, self.P + 1):
+                b_curr = self.v.id(("B", p, t))
+                b_next = self.v.id(("B", p, t+1))
+                
+                arriving_trips = []
+                for d in self.speed:
+                    start = t + 1 - d
+                    if start >= 1:
+                        dep_a = self.v.id(("dep", start, p, 'a'))
+                        dep_r = self.v.id(("dep", start, p, 'r'))
+                        arriving_trips.append(dep_a)
+                        arriving_trips.append(dep_r)
 
+                self.cnf.append([-b_curr, b_next] + arriving_trips)
+                self.cnf.append([b_curr, -b_next] + arriving_trips)
 
 
 
