@@ -31,11 +31,13 @@ class FormulaBuilderSkeleton:
         self.defines_ALL()
         self.duration_constraint()
         self.add_arrival_constraints()
+        self.add_boarding_constraints()
         self.add_alternating_constraints()
         self.add_location_constraints()
         self.add_initial_state()
         self.add_capacity_constraints()
         self.add_departure_duration_link()
+        self.add_movement_constraints()
         # todo :
         #self.add_capacity_constriants()
 
@@ -147,9 +149,25 @@ class FormulaBuilderSkeleton:
                     self.cnf.append([-dur_t_d]+ allowed_trips)
                 else : 
                     self.cnf.append([-dur_t_d])
+    
+    def add_boarding_constraints(self):
+        # Loop 0 to T-1 (or adjust range if you strictly don't allow start at 0)
+        for t in range(self.T): 
+            for p in range(1, self.P + 1):
+                dep_t_p_a = self.v.id(("dep", t, p, 'a'))
+                dep_t_p_r = self.v.id(("dep", t, p, 'r'))
+
+                B_p_t_ = self.v.id(("B", p, t))
+                A_p_t_ = self.v.id(("A", p, t))
+
+                # If departing A, must be at A. (Removes the need to check duration)
+                self.cnf.append([-dep_t_p_a, A_p_t_])
+                
+                # If departing B, must be at B.
+                self.cnf.append([-dep_t_p_r, B_p_t_])
 
     def add_arrival_constraints(self):
-        for t in range(1, self.T +1):
+        for t in range(0, self.T +1):
             for T_p in self.speed:
                 if t + T_p > self.T:
                     continue
@@ -229,7 +247,24 @@ class FormulaBuilderSkeleton:
                     encoding=EncType.seqcounter
                 )
             self.cnf.extend(cnf_atmost.clauses)
-   
+    
+    def add_movement_constraints(self):
+        for t in range(self.T):
+            DEP_t = self.v.id(("DEP", t))
+            for d in self.durations.values():
+                dur_t_d = self.v.id(("dur",t,d))
+
+                # Manual check to ensure we don't go past T
+                limit = t + d
+                if limit > self.T:
+                    limit = self.T
+
+                # Iterate only the relevant range
+                for t_prim in range(t + 1, limit):
+                    DEP_t_prim = self.v.id(("DEP", t_prim))
+                    self.cnf.append([-DEP_t, -dur_t_d, -DEP_t_prim])
+
+
 
     def add_departure_duration_link(self):
         """
@@ -297,6 +332,6 @@ if __name__ == "__main__":
         print("The formula is satisfiable.")
         print("A satisfying assignment is:")
         print_model(model)
-        export_model_to_csv(model=model, T=18, N=4, filename="test" )
+        export_model_to_csv(model=model, T=18, N=4 )
     else:
         print("The formula is not satisfiable.")
