@@ -2,7 +2,7 @@ from pysat.formula import *
 from pysat.solvers import *
 from pysat.card import *
 import itertools
-
+from view import export_model_to_csv
 
 
 from typing import Dict, Iterable, List, Optional, Tuple
@@ -33,6 +33,11 @@ class FormulaBuilderSkeleton:
         self.add_arrival_constraints()
         self.add_alternating_constraints()
         self.add_location_constraints()
+        self.add_initial_state()
+        self.add_capacity_constraints()
+        self.add_departure_duration_link()
+        # todo :
+        #self.add_capacity_constriants()
 
     def defines_DEP(self):
             """
@@ -95,6 +100,18 @@ class FormulaBuilderSkeleton:
 
         self.cnf.append(goal_constraint)
 
+    def add_initial_state(self) -> None:
+        side0 = self.v.id(("side", 0))
+        self.add_clause([side0])
+        for p in range(1, self.P + 1):
+            self.add_clause([self.v.id(("A", p, 0))])
+            self.add_clause([-self.v.id(("B", p, 0))])
+
+            for s in self.S:
+                self.add_clause([-self.v.id(("dep", 0, p, s))])
+            arr_0 = self.v.id(("ARR", p, 0))
+            self.cnf.append([-arr_0])
+
     def add_implication_constraints(self, left, right ):
         """
         Encodes: (AND left) -> (AND right)
@@ -125,11 +142,11 @@ class FormulaBuilderSkeleton:
                         for s in self.S:
                             allowed_trips.append(self.v.id(("dep", t, p, s)))
 
-                self.add_implication_constraints([-dur_t_d], forbidden_trips)
+                self.add_implication_constraints([dur_t_d], forbidden_trips)
                 if allowed_trips:
                     self.cnf.append([-dur_t_d]+ allowed_trips)
                 else : 
-                    self.cnf.append(-dur_t_d)
+                    self.cnf.append([-dur_t_d])
 
     def add_arrival_constraints(self):
         for t in range(1, self.T +1):
@@ -173,15 +190,22 @@ class FormulaBuilderSkeleton:
                     self.cnf.append([-dep_t_p_r, -dur_t_d, side_t_future])
 
     def add_location_constraints(self):
-        for t in range(1, self.T):
+        for t in range(0, self.T):
             for p in range(1, self.P + 1):
                 b_curr = self.v.id(("B", p, t))
                 b_next = self.v.id(("B", p, t+1))
+                a_curr = self.v.id(("A", p, t))
+
+                # Clause 1: -A OR -B (Cannot be at both)
+                #self.cnf.append([-a_curr, -b_curr])
+                # Clause 2: A OR B (Must be at one)
+                #self.cnf.append([a_curr, b_curr])
+
                 
                 arriving_trips = []
                 for d in self.speed:
                     start = t + 1 - d
-                    if start >= 1:
+                    if start >= 0:
                         dep_a = self.v.id(("dep", start, p, 'a'))
                         dep_r = self.v.id(("dep", start, p, 'r'))
                         arriving_trips.append(dep_a)
@@ -189,6 +213,55 @@ class FormulaBuilderSkeleton:
 
                 self.cnf.append([-b_curr, b_next] + arriving_trips)
                 self.cnf.append([b_curr, -b_next] + arriving_trips)
+    
+    def add_capacity_constraints(self):
+        for t in range(self.T):
+            chicken_trips = []
+
+            for p in range(1, self.P+1):
+                for s in self.S:
+                    dep_t_p = self.v.id(("dep", t, p, s))
+                    chicken_trips.append(dep_t_p)
+            cnf_atmost = CardEnc.atmost(
+                    lits=chicken_trips,
+                    bound=2,
+                    vpool=self.v,
+                    encoding=EncType.seqcounter
+                )
+            self.cnf.extend(cnf_atmost.clauses)
+   
+
+    def add_departure_duration_link(self):
+        """
+        Forces the solver to pick a duration if anyone departs.
+        Logic: (dep_1 OR dep_2 ...) -> (dur_1 OR dur_2 ...)
+        """
+        for t in range(1, self.T + 1):
+            
+            # 1. Collect all departure variables at time t
+            all_deps = []
+            for p in range(1, self.P + 1):
+                all_deps.append(self.v.id(("dep", t, p, 'a')))
+                all_deps.append(self.v.id(("dep", t, p, 'r')))
+            
+            # 2. Collect all valid duration variables at time t
+            valid_durs = []
+            unique_speeds = set(self.durations.values())
+            for d in unique_speeds:
+                if t + d <= self.T:
+                    valid_durs.append(self.v.id(("dur", t, d)))
+            
+            # 3. Add the Linkage Constraint
+            # If any departure is True, at least one duration MUST be True.
+            # CNF: -dep_i OR (dur_val_1 OR dur_val_2 ...)
+            
+            if valid_durs:
+                for dep in all_deps:
+                    self.cnf.append([-dep] + valid_durs)
+            else:
+                # If no durations are valid (e.g. near end of T), NO ONE can depart.
+                for dep in all_deps:
+                    self.cnf.append([-dep])
 
 
 
@@ -224,5 +297,6 @@ if __name__ == "__main__":
         print("The formula is satisfiable.")
         print("A satisfying assignment is:")
         print_model(model)
+        export_model_to_csv(model=model, T=18, N=4, filename="test" )
     else:
         print("The formula is not satisfiable.")
