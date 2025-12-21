@@ -38,6 +38,7 @@ class FormulaBuilderSkeleton:
         self.add_capacity_constraints()
         self.add_departure_duration_link()
         self.add_movement_constraints()
+
         # todo :
         #self.add_capacity_constriants()
 
@@ -47,7 +48,7 @@ class FormulaBuilderSkeleton:
             Logic: DEP_t <-> (Person1_Departs OR Person2_Departs OR ...)
             Meaning: The boat leaves at time t if and only if at least one person is on it.
             """
-            for t in range(1, self.T + 1):
+            for t in range(0, self.T + 1):
                 DEP_t = self.v.id(("DEP", t))
                 
                 # Collect all individual departures (Aller + Retour) for this time step
@@ -67,10 +68,10 @@ class FormulaBuilderSkeleton:
                 self.cnf.append([-DEP_t] + all_person_deps)
 
     def defines_ARR(self):
-        for t_arr in range(1, self.T + 1):
+        for t_arr in range(0, self.T + 1):
             arr_var = self.v.id(("ARR", t_arr))
             possible_trips = []
-            print(self.durations)
+
             for item in self.durations.items():
                 d=item[1]
                 start_time = t_arr - d
@@ -88,7 +89,7 @@ class FormulaBuilderSkeleton:
 
     def defines_ALL(self):
         goal_constraint = []
-        for t in range(1, self.T + 1):
+        for t in range(0, self.T + 1):
             ALL_t = self.v.id(("ALL", t))
             chickens_in_B = []
             for p in range(1, self.P + 1):
@@ -109,8 +110,6 @@ class FormulaBuilderSkeleton:
             self.add_clause([self.v.id(("A", p, 0))])
             self.add_clause([-self.v.id(("B", p, 0))])
 
-            for s in self.S:
-                self.add_clause([-self.v.id(("dep", 0, p, s))])
             arr_0 = self.v.id(("ARR", p, 0))
             self.cnf.append([-arr_0])
 
@@ -128,7 +127,7 @@ class FormulaBuilderSkeleton:
 
     def duration_constraint(self):
 
-        for t in range(1, self.T+1):
+        for t in range(0, self.T+1):
             for item in self.durations.items():
                 d = item[1]
                 dur_t_d = self.v.id(("dur", t, d))
@@ -169,12 +168,13 @@ class FormulaBuilderSkeleton:
     def add_arrival_constraints(self):
         for t in range(0, self.T +1):
             for T_p in self.speed:
+                dur_t_d = self.v.id(("dur", t, T_p))
+
                 if t + T_p > self.T:
                     continue
                 for p in range(1, self.P+1):
                     dep_t_p_a = self.v.id(("dep", t, p, 'a'))
                     dep_t_p_r = self.v.id(("dep", t, p, 'r'))
-                    dur_t_d = self.v.id(("dur", t, T_p))
 
                     B_p_t_future = self.v.id(("B", p, t + T_p))
                     A_p_t_future = self.v.id(("A", p, t + T_p))
@@ -182,8 +182,10 @@ class FormulaBuilderSkeleton:
                     self.cnf.append([-dep_t_p_a, -dur_t_d, B_p_t_future])
                     self.cnf.append([-dep_t_p_r, -dur_t_d, A_p_t_future])
 
+
+
     def add_alternating_constraints(self):
-        for t in range(1, self.T +1):
+        for t in range(self.T):
             side_t = self.v.id(("side", t))
             for p in range(1, self.P+1):
                     dep_t_p_a = self.v.id(("dep", t, p, 'a'))
@@ -202,10 +204,13 @@ class FormulaBuilderSkeleton:
                 for p in range(1, self.P+1):
                     dep_t_p_a = self.v.id(("dep", t, p, 'a'))
                     dep_t_p_r = self.v.id(("dep", t, p, 'r'))
-
+    
                     
                     self.cnf.append([-dep_t_p_a, -dur_t_d, -side_t_future])
                     self.cnf.append([-dep_t_p_r, -dur_t_d, side_t_future])
+
+    
+
 
     def add_location_constraints(self):
         for t in range(0, self.T):
@@ -271,7 +276,7 @@ class FormulaBuilderSkeleton:
         Forces the solver to pick a duration if anyone departs.
         Logic: (dep_1 OR dep_2 ...) -> (dur_1 OR dur_2 ...)
         """
-        for t in range(1, self.T + 1):
+        for t in range(0, self.T + 1):
             
             # 1. Collect all departure variables at time t
             all_deps = []
