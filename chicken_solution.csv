@@ -1,0 +1,20 @@
+Time;Boat;Action;Direction;Passengers;Duration;Arrival T;# Chickens A;Chickens at A;# Chickens B;Chickens at B
+0;Bank A;Move;A → B;1, 2;3;3;4;1 2 3 4;0;
+1;Bank A;Wait;;;;;3;2 3 4;1;1
+2;Bank A;Wait;;;;;3;2 3 4;1;1
+3;Bank B;Move;B → A;1;1;4;2;3 4;2;1 2
+4;Bank A;Move;A → B;3, 4;8;12;3;1 3 4;1;2
+5;Bank A;Wait;;;;;3;1 3 4;1;2
+6;Bank A;Wait;;;;;4;1 2 3 4;0;
+7;Bank A;Wait;;;;;3;1 2 4;1;3
+8;Bank A;Wait;;;;;2;1 4;2;2 3
+9;Bank A;Wait;;;;;1;4;3;1 2 3
+10;Bank A;Wait;;;;;1;4;3;1 2 3
+11;Bank A;Wait;;;;;1;4;3;1 2 3
+12;Bank B;Wait;;;;;0;;4;1 2 3 4
+13;Bank B;Wait;;;;;0;;4;1 2 3 4
+14;Bank B;Wait;;;;;0;;4;1 2 3 4
+15;Bank B;Wait;;;;;0;;4;1 2 3 4
+16;Bank B;Wait;;;;;0;;4;1 2 3 4
+17;Bank B;Wait;;;;;0;;4;1 2 3 4
+18;Bank B;Wait;;;;;0;;4;1 2 3 4

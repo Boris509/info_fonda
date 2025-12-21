@@ -33,6 +33,7 @@ class FormulaBuilderSkeleton:
         self.add_arrival_constraints()
         self.add_boarding_constraints()
         self.add_alternating_constraints()
+        self.add_side_persistence()
         self.add_location_constraints()
         self.add_initial_state()
         self.add_capacity_constraints()
@@ -209,8 +210,15 @@ class FormulaBuilderSkeleton:
                     self.cnf.append([-dep_t_p_a, -dur_t_d, -side_t_future])
                     self.cnf.append([-dep_t_p_r, -dur_t_d, side_t_future])
 
-    
 
+    def add_side_persistence(self):
+        for t in range(self.T):
+            side_t = self.v.id(("side", t))
+            side_t_next = self.v.id(("side", t + 1))
+            arr_t_next = self.v.id(("ARR", t + 1))
+
+            self.cnf.append([arr_t_next, -side_t, side_t_next])
+            self.cnf.append([arr_t_next, side_t, -side_t_next])
 
     def add_location_constraints(self):
         for t in range(0, self.T):
