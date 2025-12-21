@@ -100,9 +100,8 @@ class FormulaBuilderSkeleton:
             self.add_implication_constraints([ALL_t], chickens_in_B)
 
             # goal constraint :
-            goal_constraint.append(ALL_t)
-
-        self.cnf.append(goal_constraint)
+        
+        self.cnf.append([self.v.id(("ALL", self.T))])
 
     def add_initial_state(self) -> None:
         side0 = self.v.id(("side", 0))
@@ -111,8 +110,7 @@ class FormulaBuilderSkeleton:
             self.add_clause([self.v.id(("A", p, 0))])
             self.add_clause([-self.v.id(("B", p, 0))])
 
-            arr_0 = self.v.id(("ARR", p, 0))
-            self.cnf.append([-arr_0])
+            self.cnf.append([-self.v.id(("ARR", 0))])
 
     def add_implication_constraints(self, left, right ):
         """
@@ -221,30 +219,68 @@ class FormulaBuilderSkeleton:
             self.cnf.append([arr_t_next, side_t, -side_t_next])
 
     def add_location_constraints(self):
+        # trie durations 1,3,6 ..etc
+        speeds = sorted(set(self.durations.values()))
+
         for t in range(0, self.T):
             for p in range(1, self.P + 1):
+
                 b_curr = self.v.id(("B", p, t))
-                b_next = self.v.id(("B", p, t+1))
+                b_next = self.v.id(("B", p, t + 1))
+
                 a_curr = self.v.id(("A", p, t))
+                a_next = self.v.id(("A", p, t + 1))
 
-                # Clause 1: -A OR -B (Cannot be at both)
-                #self.cnf.append([-a_curr, -b_curr])
-                # Clause 2: A OR B (Must be at one)
-                #self.cnf.append([a_curr, b_curr])
+                # a checkin is either in a or b never null part
+                self.cnf.append([a_curr, b_curr])
+                self.cnf.append([-a_curr, -b_curr])
+                self.cnf.append([a_next, b_next])
+                self.cnf.append([-a_next, -b_next])
 
-                
                 arriving_trips = []
-                for d in self.speed:
-                    start = t + 1 - d
-                    if start >= 0:
-                        dep_a = self.v.id(("dep", start, p, 'a'))
-                        dep_r = self.v.id(("dep", start, p, 'r'))
-                        arriving_trips.append(dep_a)
-                        arriving_trips.append(dep_r)
 
+                for d in speeds:
+                    start = (t + 1) - d
+                    if start < 0:
+                        continue
+
+                    dur_start_d = self.v.id(("dur", start, d))
+
+                    # arrive to B
+                    dep_a = self.v.id(("dep", start, p, 'a'))
+                    h_arr_B = self.v.id(("hArrB", start, p, d))
+
+                    # h_arr_B <-> (dep_a ∧ dur_start_d)
+                    self.cnf.append([-h_arr_B, dep_a])
+                    self.cnf.append([-h_arr_B, dur_start_d])
+                    self.cnf.append([-dep_a, -dur_start_d, h_arr_B])
+
+                    # effet : si h_arr_B alors p est sur B à t+1
+                    self.cnf.append([-h_arr_B, b_next])
+                    self.cnf.append([-h_arr_B, -a_next])
+
+                    # arrive on A
+                    dep_r = self.v.id(("dep", start, p, 'r'))
+                    h_arr_A = self.v.id(("hArrA", start, p, d))
+
+                    # h_arr_A <-> (dep_r ∧ dur_start_d)
+                    self.cnf.append([-h_arr_A, dep_r])
+                    self.cnf.append([-h_arr_A, dur_start_d])
+                    self.cnf.append([-dep_r, -dur_start_d, h_arr_A])
+
+                    self.cnf.append([-h_arr_A, a_next])
+                    self.cnf.append([-h_arr_A, -b_next])
+
+                    arriving_trips.append(h_arr_A)
+                    arriving_trips.append(h_arr_B)
+
+                # VITESS if no one arrives don't change
+                # -b_curr OR b_next OR arrivals
+                #  b_curr OR -b_next OR arrivals
                 self.cnf.append([-b_curr, b_next] + arriving_trips)
                 self.cnf.append([b_curr, -b_next] + arriving_trips)
-    
+
+
     def add_capacity_constraints(self):
         for t in range(self.T):
             chicken_trips = []
@@ -255,7 +291,7 @@ class FormulaBuilderSkeleton:
                     chicken_trips.append(dep_t_p)
             cnf_atmost = CardEnc.atmost(
                     lits=chicken_trips,
-                    bound=2,
+                    bound=self.capacity,
                     vpool=self.v,
                     encoding=EncType.seqcounter
                 )
